@@ -95,3 +95,36 @@ function doPost(e){
     return response_(token,false,'受付できませんでした。時間をおいて再度お試しください。');
   } finally {lock.releaseLock();}
 }
+
+
+/**
+ * Browser-side receipt verification. Returns only whether a random request ID
+ * was saved, never applicant data. JSONP is used because GitHub Pages and
+ * Apps Script ContentService do not share an origin.
+ */
+function doGet(e) {
+  const p=e && e.parameter ? e.parameter : {};
+  const token=String(p.token||'').trim();
+  const callback=String(p.callback||'');
+  if (p.action!=='status' || !/^[a-zA-Z0-9_-]{20,90}$/.test(token) ||
+      !/^satoKogyoStatus_[a-zA-Z0-9_]{1,80}$/.test(callback)) {
+    return ContentService.createTextOutput('/* invalid request */')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  const id=PropertiesService.getScriptProperties().getProperty(SK.spreadsheetProperty);
+  let saved=false;
+  if(id) {
+    try {
+      const sheet=SpreadsheetApp.openById(id).getSheetByName(SK.sheetName);
+      if(sheet && sheet.getLastRow()>1) {
+        // Verify against actual persisted row, not just a transient cache.
+        const last=sheet.getLastRow(), first=Math.max(2,last-499);
+        const values=sheet.getRange(first,2,last-first+1,1).getDisplayValues();
+        saved=values.some(row=>row[0]===token);
+      }
+    } catch(err) {console.error('受付照会失敗: '+err);}
+  }
+  const payload=JSON.stringify({token:token,saved:saved});
+  return ContentService.createTextOutput(callback+'('+payload+');')
+    .setMimeType(ContentService.MimeType.JAVASCRIPT);
+}
