@@ -31,6 +31,7 @@ function setupApplication() {
   sheet.getRange(1,1,1,SK.fields.length).setValues([SK.fields]);
   sheet.getRange(1,1,1,SK.fields.length).setFontWeight('bold').setBackground('#173450').setFontColor('#ffffff');
   sheet.setFrozenRows(1);
+  Logger.log('メール送信上限（残数）: '+MailApp.getRemainingDailyQuota());
   Logger.log('応募管理シート: '+book.getUrl());
   return book.getUrl();
 }
@@ -71,11 +72,16 @@ function doPost(e){
     const cache=CacheService.getScriptCache();
     const key='req_'+Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,token).map(x=>(x+256)%256).map(x=>x.toString(16).padStart(2,'0')).join('').slice(0,40);
     if(cache.get(key))return response_(token,true,'すでに受付済みです。');
+    // Basic spam throttling per contact. Public websites should add Turnstile verification before wider promotion.
+    const contactHash=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,contact.toLowerCase()).map(x=>(x+256)%256).map(x=>x.toString(16).padStart(2,'0')).join('').slice(0,40);
+    const contactKey='contact_'+contactHash;
+    if(cache.get(contactKey))return response_(token,false,'短時間に繰り返し応募できません。少し時間をおいてください。');
     const sheet=SpreadsheetApp.openById(id).getSheetByName(SK.sheetName);
     if(!sheet) return response_(token,false,'受付シートが見つかりません。');
     const row=[new Date(),token,name,contact,...items,'未対応'];
     sheet.appendRow(row);
     cache.put(key,'1',21600);
+    cache.put(contactKey,'1',90);
     const body=[
       '佐藤工業HPから協力大工の問い合わせがありました。','',
       ...SK.fields.slice(1,9).map((field,i)=>field+': '+String(row[i+1])),
