@@ -46,7 +46,7 @@ function response_(token, ok, message) {
   // use JSON encoding to safely interpolate into HTML script.
   const data=JSON.stringify({type:'sato-kogyo-recruit-result',token:token,ok:ok,message:message});
   const html='<!doctype html><html><head><meta charset="utf-8"></head><body>'+
-    '<script>window.parent.postMessage('+data+','+JSON.stringify(SK.allowedParent)+');<\/script>'+
+    '<script>try{window.top.postMessage('+data+','+JSON.stringify(SK.allowedParent)+')}catch(e){};try{window.parent.postMessage('+data+','+JSON.stringify(SK.allowedParent)+')}catch(e){};<\/script>'+
     '<p>'+ (ok?'受付しました。':'送信を完了できませんでした。') +'</p></body></html>';
   return HtmlService.createHtmlOutput(html).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
